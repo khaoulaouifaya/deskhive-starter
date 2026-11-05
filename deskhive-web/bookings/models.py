@@ -19,6 +19,16 @@ class Booking(TimestampedModel):
         ordering = ['start', 'pk']
         constraints = [models.CheckConstraint(condition=models.Q(end__gt=models.F('start')), name='booking_end_after_start')]
     def clean(self):
-        # TODO M5 lab 1: validate local duration and reject overlapping bookings.
-        # Exclude self.pk so updating an unchanged booking remains valid.
-        raise ValidationError('Complete M5 lab 1: Booking.clean().')
+        super().clean()
+        if self.start and self.end:
+            try:
+                validate_booking(*local_interval(self.start, self.end))
+            except InvalidBookingError as exc:
+                raise ValidationError(str(exc)) from exc
+            overlapping = (Booking.objects
+                           .filter(space=self.space,
+                                   start__lt=self.end,
+                                   end__gt=self.start)
+                           .exclude(pk=self.pk))
+            if overlapping.exists():
+                raise ValidationError('This space is already booked for that interval.')
